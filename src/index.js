@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -20,7 +21,7 @@ app.use((err, req, res, next) => {
   if (!err) {
     return next();
   }
-  return res.status(err.statusCode).json({ message: err.message });
+  return res.status(err.statusCode || 500).json({ message: err.message });
 });
 
 const server = app.listen(port, () => {

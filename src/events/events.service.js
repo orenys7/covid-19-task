@@ -1,7 +1,7 @@
 const atob = require("atob");
 const CustomError = require("../errors/custom-error");
 const AWS = require("aws-sdk");
-AWS.config.update({ region: "us-east-1" });
+AWS.config.update({ region: process.env.REGION });
 
 const kinesis = new AWS.Kinesis();
 
@@ -17,14 +17,14 @@ const filterByTimestamp = (dataRecords, from, to) => {
   if (records) {
     return records.map((record) => JSON.parse(atob(record.Data)));
   }
-  throw new CustomError("Not found records between timestamps.", 404);
+  return;
 };
 
 module.exports = {
   async getEventsRecords(next, eventType, from, to) {
     let params = {
-      StreamName: "contrast-stream",
-      ShardId: "shardId-000000000000",
+      StreamName: process.env.STREAM_NAME,
+      ShardId: process.env.SHARD_ID,
       ShardIteratorType: "AT_TIMESTAMP",
       Timestamp: parseFloat(from),
     };
@@ -52,6 +52,11 @@ module.exports = {
           reject(new CustomError(err.message, err.statusCode)); // an error occurred
         } else {
           const recordslist = filterByTimestamp(data.Records, from, to);
+          if (!recordslist) {
+            reject(
+              new CustomError("Not found records between timestamps.", 404)
+            );
+          }
           const planetRecords = recordslist.filter(
             (record) => record.planet === eventType
           );
@@ -59,6 +64,7 @@ module.exports = {
             reject(new CustomError("No records for requested planet.", 404));
           }
 
+          // Succeeds to get records
           resolve({
             type: eventType,
             value:
@@ -77,7 +83,6 @@ module.exports = {
   },
   async putEventsRecords(next, planet) {
     // Generate mutations
-
     const data = {
       planet,
       mutations: Math.random() * 100,
@@ -86,13 +91,14 @@ module.exports = {
     const params = {
       Data: new Buffer(JSON.stringify(data)),
       PartitionKey: "1",
-      StreamName: "contrast-stream",
+      StreamName: process.env.STREAM_NAME,
     };
     const res = await new Promise((resolve, reject) => {
       kinesis.putRecord(params, (err, data) => {
         if (err) {
           reject(new CustomError(err.message, err.statusCode));
         } else {
+          // Succeeds to put record
           resolve(data);
         }
       });
